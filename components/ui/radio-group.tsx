@@ -434,7 +434,7 @@ const RadioItem = forwardRef<HTMLDivElement, RadioItemProps>(
         {/* Label */}
         {/* Both stacked spans carry the text-box trim so the invisible bold
             sizer and the visible label keep identical boxes. */}
-        <span className={cn("inline-grid", sizeClasses.text)}>
+        <span className={cn("inline-grid min-w-0 flex-1 break-words", sizeClasses.text)}>
           {/* Always semibold, so the grid cell is sized for the heaviest
               weight and the row never shifts when the label gains weight. */}
           <span

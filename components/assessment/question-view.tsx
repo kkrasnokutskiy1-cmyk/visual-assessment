@@ -115,10 +115,17 @@ export function QuestionView({
             value={selectedOption ?? ""}
             onValueChange={(id) => setValue({ type: "option", optionId: id })}
             aria-label="Варианты ответа"
-            className={readOnly ? "pointer-events-none" : undefined}
+            className={cn("w-full gap-1", readOnly && "pointer-events-none")}
+            style={{ width: "100%" }}
           >
             {question.options.map((opt, i) => (
-              <RadioItem key={opt.id} index={i} value={opt.id} label={opt.label ?? opt.id} />
+              <RadioItem
+                key={opt.id}
+                index={i}
+                value={opt.id}
+                label={opt.label ?? opt.id}
+                style={{ height: "auto", minHeight: 44, paddingBlock: 10 }}
+              />
             ))}
           </RadioGroup>
         </div>
@@ -168,11 +175,10 @@ export function QuestionView({
       )}
       {value && question.source.url && (
         <p className="max-w-[var(--reading-max)] border-t border-border pt-4 text-caption text-muted-foreground">
-          Источник примера: {" "}
+          Источник: {" "}
           <a href={question.source.url} target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-4">
             {question.source.title}
           </a>
-          . Откройте оригинал, чтобы изучить контекст и аргументы автора.
         </p>
       )}
     </div>
