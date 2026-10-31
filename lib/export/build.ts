@@ -8,11 +8,11 @@
 import type {
   Answer,
   AnswerValue,
-  Assessment,
+  PublicAssessment,
+  PublicQuestion,
   Asset,
   Attempt,
   Mark,
-  Question,
   QuestionKind,
   Source,
 } from "@/lib/assessment/types";
@@ -105,7 +105,7 @@ const NOTE =
 
 export function describeResponse(
   value: AnswerValue | undefined,
-  question: Pick<Question, "options">,
+  question: Pick<PublicQuestion, "options">,
   hasContent: boolean,
 ): ExportedResponse {
   if (!value) return hasContent ? { status: "partial" } : { status: "unanswered" };
@@ -137,7 +137,7 @@ function absolutize(asset: Asset | undefined, baseUrl?: string): Asset | undefin
 }
 
 function exportQuestion(
-  question: Question,
+  question: PublicQuestion,
   answer: Answer | undefined,
   baseUrl?: string,
 ): ExportedQuestion {
@@ -206,7 +206,7 @@ export function summarize(blocks: ExportedBlock[]): ExportSummary {
 
 export function buildExport(
   attempt: Attempt,
-  assessment: Assessment,
+  assessment: PublicAssessment,
   { now = new Date(), baseUrl }: BuildExportOptions = {},
 ): AssessmentExport {
   const known = new Set<string>();

@@ -6,8 +6,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { getAssessment } from "@/content/assessments";
-import type { Assessment, Attempt } from "@/lib/assessment/types";
+import type { Attempt, PublicAssessment } from "@/lib/assessment/types";
 import { buildExport } from "@/lib/export/build";
 import { downloadExport } from "@/lib/export/download";
 import { Button } from "@/components/ui/button";
@@ -40,9 +39,12 @@ function formatDate(iso?: string) {
 export function ResultsScreen({
   mode,
   params,
+  bank,
 }: {
   mode: Mode;
   params: Promise<{ attemptId?: string; token?: string }>;
+  /** Every published version, without interpretation (lib/assessment/public.ts). */
+  bank: PublicAssessment[];
 }) {
   const { attemptId, token } = use(params);
   const key = (mode === "owner" ? attemptId : token) ?? "";
@@ -73,12 +75,14 @@ export function ResultsScreen({
       // Prefer the server-side snapshot taken at the start of the attempt, so a
       // later bank change never alters a finished attempt (interpretation is
       // stripped by the server; the export never reads it).
-      const snapshot = (attempt as Attempt & { assessmentSnapshot?: Assessment })
+      const snapshot = (attempt as Attempt & { assessmentSnapshot?: PublicAssessment })
         .assessmentSnapshot;
       if (snapshot?.blocks) return snapshot;
-      return getAssessment(attempt.assessmentId, attempt.assessmentVersion);
+      return bank.find(
+        (a) => a.id === attempt.assessmentId && a.version === attempt.assessmentVersion,
+      );
     },
-    [attempt],
+    [attempt, bank],
   );
   const data = useMemo(
     () => (attempt && assessment ? buildExport(attempt, assessment) : null),

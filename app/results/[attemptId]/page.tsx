@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { ResultsScreen, ResultsSkeleton } from "@/components/results/ResultsScreen";
+import { publicAllVersions } from "@/lib/assessment/public";
 
 export const metadata: Metadata = {
   title: "Мои результаты",
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 export default function OwnerResultsPage(props: PageProps<"/results/[attemptId]">) {
   return (
     <Suspense fallback={<ResultsSkeleton />}>
-      <ResultsScreen mode="owner" params={props.params} />
+      <ResultsScreen mode="owner" params={props.params} bank={publicAllVersions()} />
     </Suspense>
   );
 }

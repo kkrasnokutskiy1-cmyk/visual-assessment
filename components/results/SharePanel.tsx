@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Check, Copy, Download, Link2, Link2Off } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { Assessment, Attempt } from "@/lib/assessment/types";
+import type { Attempt, PublicAssessment } from "@/lib/assessment/types";
 import { buildExport } from "@/lib/export/build";
 import { downloadExport } from "@/lib/export/download";
 import { resultsApi, shareUrl } from "./api";
@@ -21,7 +21,7 @@ export function SharePanel({
   onShareChange,
 }: {
   attempt: Attempt;
-  assessment: Assessment;
+  assessment: PublicAssessment;
   onShareChange?: (token: string | null) => void;
 }) {
   const [token, setToken] = useState<string | null>(attempt.shareToken ?? null);
