@@ -3,6 +3,10 @@ import { block as hierarchyBlock } from "./v2/hierarchy";
 import { materialsBlock } from "./v2/materials";
 import { interactionBlock } from "./v2/interaction";
 import { typographyBlock } from "./v3/typography";
+import { typographyBlockV4 } from "./v4/typography";
+import { effectsBlock } from "./v4/effects";
+import { graphicDesignBlock } from "./v4/graphic-design";
+import { materialsBlockV4 } from "./v4/materials";
 
 const source = { title: "Авторский учебный пример", license: "Оригинальный материал проекта" };
 const asset = (name: string, alt: string): Asset => ({ src: `/assessment-assets/${name}.svg`, alt, width: 800, height: 500 });
@@ -82,6 +86,20 @@ const v3: Assessment = {
     typographyBlock,
   ],
 };
-const versions: readonly Assessment[] = [v1, v2, v3];
+const v4: Assessment = {
+  id: "visual-foundations",
+  version: 4,
+  title: "Визуальный асессмент",
+  description: "Ситуационные задания на примерах опубликованных интерфейсов и графических решений. Отвечайте из опыта: предварительное чтение статей не требуется. Ответы и комментарии — материал для качественного разбора, а не автоматический рейтинг.",
+  blocks: [typographyBlockV4, graphicDesignBlock, materialsBlockV4, effectsBlock, {
+    ...interactionBlock,
+    questions: interactionBlock.questions.map((question) => question.id === "interaction-06" ? {
+      ...question,
+      version: 2,
+      context: "В мобильном рабочем продукте пользователь регулярно переключается между разделами и часто создаёт задачи. На изображении — пример нижней панели Linear. Выберите понятное разделение навигации и действия.",
+    } : question),
+  }],
+};
+const versions: readonly Assessment[] = [v1, v2, v3, v4];
 export function listAssessments(): Assessment[] { return versions.filter((item) => !versions.some((other) => other.id === item.id && other.version > item.version)); }
 export function getAssessment(id: string, version?: number): Assessment | undefined { return version === undefined ? listAssessments().find((item) => item.id === id) : versions.find((item) => item.id === id && item.version === version); }
