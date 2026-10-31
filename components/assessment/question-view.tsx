@@ -3,7 +3,7 @@
 import { Check } from "lucide-react";
 import { RadioGroup, RadioItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
-import type { Answer, AnswerValue, Mark, Question } from "@/lib/assessment/types";
+import type { Answer, AnswerValue, Mark, PublicQuestion } from "@/lib/assessment/types";
 import { cn } from "@/lib/utils";
 import { MarkLayer } from "./mark-layer";
 import { Specimen } from "./specimen";
@@ -18,7 +18,7 @@ export function QuestionView({
   readOnly,
   onChange,
 }: {
-  question: Question;
+  question: PublicQuestion;
   answer?: Answer;
   readOnly?: boolean;
   onChange: (patch: AnswerPatch) => void;

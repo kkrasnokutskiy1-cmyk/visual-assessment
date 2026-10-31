@@ -118,3 +118,9 @@ export type SaveState = "idle" | "saving" | "saved" | "error";
  * Errors: { error: string } with status 400/401/403/404/409/500.
  * 409 when writing to a completed attempt.
  */
+
+/* ---------- Public (client-safe) view: interpretation criteria stripped ---------- */
+
+export type PublicQuestion = Omit<Question, "interpretation">;
+export type PublicBlock = Omit<Block, "questions"> & { questions: PublicQuestion[] };
+export type PublicAssessment = Omit<Assessment, "blocks"> & { blocks: PublicBlock[] };

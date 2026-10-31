@@ -5,9 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { getAssessment } from "@/content/assessments";
 import { AttemptApiError, attemptsApi, mergeAnswers } from "@/lib/assessment/client";
-import type { Answer, Assessment, Attempt } from "@/lib/assessment/types";
+import type { Answer, Attempt, PublicAssessment } from "@/lib/assessment/types";
 import { flatten, summarize } from "./progress";
 import { QuestionNav } from "./question-nav";
 import { QuestionView, type AnswerPatch } from "./question-view";
@@ -19,11 +18,18 @@ import { useAnswerSync } from "./use-answer-sync";
 type Load =
   | { kind: "loading" }
   | { kind: "error"; message: string; status: number }
-  | { kind: "ready"; attempt: Attempt; assessment: Assessment };
+  | { kind: "ready"; attempt: Attempt; assessment: PublicAssessment };
 
 const REVIEW = "review";
 
-export function AssessmentRunner({ attemptId }: { attemptId: string }) {
+export function AssessmentRunner({
+  attemptId,
+  assessments,
+}: {
+  attemptId: string;
+  /** All published versions, interpretation stripped on the server. */
+  assessments: PublicAssessment[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -41,7 +47,9 @@ export function AssessmentRunner({ attemptId }: { attemptId: string }) {
     setLoad({ kind: "loading" });
     try {
       const attempt = await attemptsApi.get(attemptId);
-      const assessment = getAssessment(attempt.assessmentId);
+      const assessment = assessments.find(
+        (a) => a.id === attempt.assessmentId && a.version === attempt.assessmentVersion,
+      );
       if (!assessment) {
         setLoad({ kind: "error", status: 404, message: "Набор вопросов для этой попытки не найден." });
         return;
@@ -51,7 +59,7 @@ export function AssessmentRunner({ attemptId }: { attemptId: string }) {
       const err = e instanceof AttemptApiError ? e : new AttemptApiError("Не удалось загрузить попытку.", 0);
       setLoad({ kind: "error", status: err.status, message: err.message });
     }
-  }, [attemptId]);
+  }, [attemptId, assessments]);
 
   useEffect(() => {
     // Initial fetch of external data; state is set once the request settles.

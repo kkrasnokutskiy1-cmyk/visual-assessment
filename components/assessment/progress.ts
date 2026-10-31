@@ -1,8 +1,8 @@
-import type { Answer, Assessment, Question } from "@/lib/assessment/types";
+import type { Answer, PublicAssessment, PublicQuestion } from "@/lib/assessment/types";
 
 export type QuestionStatus = "answered" | "unsure" | "skipped" | "empty";
 
-export function questionStatus(q: Question, a?: Answer): QuestionStatus {
+export function questionStatus(q: PublicQuestion, a?: Answer): QuestionStatus {
   if (!a) return "empty";
   if (a.value?.type === "unsure") return "unsure";
   if (a.value?.type === "skip") return "skipped";
@@ -11,9 +11,9 @@ export function questionStatus(q: Question, a?: Answer): QuestionStatus {
   return "empty";
 }
 
-export type FlatQuestion = { question: Question; blockId: string; blockTitle: string; index: number };
+export type FlatQuestion = { question: PublicQuestion; blockId: string; blockTitle: string; index: number };
 
-export function flatten(assessment: Assessment): FlatQuestion[] {
+export function flatten(assessment: PublicAssessment): FlatQuestion[] {
   const out: FlatQuestion[] = [];
   for (const block of assessment.blocks) {
     for (const question of block.questions) {

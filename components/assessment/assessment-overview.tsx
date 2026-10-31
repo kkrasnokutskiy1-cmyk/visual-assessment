@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { listAssessments } from "@/content/assessments";
 import { AttemptApiError, attemptsApi, readOutbox } from "@/lib/assessment/client";
-import type { Assessment, Attempt } from "@/lib/assessment/types";
+import type { Attempt, PublicAssessment } from "@/lib/assessment/types";
 import { flatten, summarize } from "./progress";
 
 type Load =
@@ -17,9 +16,8 @@ type Load =
 
 const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
-export function AssessmentOverview() {
+export function AssessmentOverview({ assessments }: { assessments: PublicAssessment[] }) {
   const router = useRouter();
-  const assessments = listAssessments();
   const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [starting, setStarting] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
@@ -80,7 +78,7 @@ function AssessmentCard({
   onStart,
   onRetry,
 }: {
-  assessment: Assessment;
+  assessment: PublicAssessment;
   load: Load;
   starting: boolean;
   startError: string | null;
@@ -193,7 +191,7 @@ function AttemptRow({
   primary,
 }: {
   attempt: Attempt;
-  assessment: Assessment;
+  assessment: PublicAssessment;
   flatTotal: number;
   primary?: boolean;
 }) {
