@@ -7,7 +7,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { getAssessment } from "@/content/assessments";
-import type { Attempt } from "@/lib/assessment/types";
+import type { Assessment, Attempt } from "@/lib/assessment/types";
 import { buildExport } from "@/lib/export/build";
 import { downloadExport } from "@/lib/export/download";
 import { Button } from "@/components/ui/button";
@@ -68,7 +68,16 @@ export function ResultsScreen({
 
   const attempt = state.kind === "ready" ? state.attempt : null;
   const assessment = useMemo(
-    () => (attempt ? getAssessment(attempt.assessmentId, attempt.assessmentVersion) : undefined),
+    () => {
+      if (!attempt) return undefined;
+      // Prefer the server-side snapshot taken at the start of the attempt, so a
+      // later bank change never alters a finished attempt (interpretation is
+      // stripped by the server; the export never reads it).
+      const snapshot = (attempt as Attempt & { assessmentSnapshot?: Assessment })
+        .assessmentSnapshot;
+      if (snapshot?.blocks) return snapshot;
+      return getAssessment(attempt.assessmentId, attempt.assessmentVersion);
+    },
     [attempt],
   );
   const data = useMemo(
