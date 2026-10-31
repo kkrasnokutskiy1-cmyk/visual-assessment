@@ -1,4 +1,6 @@
 import type { Assessment, Asset, Block, Question } from "@/lib/assessment/types";
+import { block as hierarchyBlock } from "./v2/hierarchy";
+import { materialsBlock } from "./v2/materials";
 
 const source = { title: "Авторский учебный пример", license: "Оригинальный материал проекта" };
 const asset = (name: string, alt: string): Asset => ({ src: `/assessment-assets/${name}.svg`, alt, width: 800, height: 500 });
@@ -46,6 +48,17 @@ const blocks: Block[] = [
  ]}
 ];
 const v1: Assessment = { id:"visual-foundations", version:1, title:"Визуальный асессмент", description:"Первый проход: визуальное восприятие, аргументация и контекст решений. Ответы — материал для последующего анализа, а не автоматический рейтинг.", blocks };
-const versions: readonly Assessment[] = [v1];
+// v2: every question is built on a published case (content/research/*) and shows the source's own images.
+// v1 stays untouched: saved attempts reference it by version.
+const v2Blocks: Block[] = [hierarchyBlock, materialsBlock];
+const v2: Assessment = {
+  id: "visual-foundations",
+  version: 2,
+  title: "Визуальный асессмент",
+  description:
+    "Разборы опубликованных кейсов: исследования NN/g и Google, редизайны Figma, Linear, Stripe и других команд. В каждом задании — изображения из первоисточника; ответ сверяется с тем, что сказали или измерили авторы, а не с мнением составителя.",
+  blocks: v2Blocks,
+};
+const versions: readonly Assessment[] = [v1, v2];
 export function listAssessments(): Assessment[] { return versions.filter((item) => !versions.some((other) => other.id === item.id && other.version > item.version)); }
 export function getAssessment(id: string, version?: number): Assessment | undefined { return version === undefined ? listAssessments().find((item) => item.id === id) : versions.find((item) => item.id === id && item.version === version); }

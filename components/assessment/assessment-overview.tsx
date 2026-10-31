@@ -84,11 +84,13 @@ function AssessmentCard({
 }) {
   const flat = flatten(assessment);
   const attempts = load.kind === "ready" ? load.attempts.filter((t) => t.assessmentId === assessment.id) : [];
-  const active = attempts.find((t) => t.status === "in_progress");
-  const done = attempts.filter((t) => t.status === "completed");
+  const currentAttempts = attempts.filter((t) => t.assessmentVersion === assessment.version);
+  const olderAttempts = attempts.filter((t) => t.assessmentVersion !== assessment.version);
+  const active = currentAttempts.find((t) => t.status === "in_progress");
+  const done = currentAttempts.filter((t) => t.status === "completed");
 
   return (
-    <section className="grid grid-cols-[minmax(0,1fr)_320px] gap-12">
+    <section className="grid gap-8 md:grid-cols-[minmax(0,1fr)_300px] md:gap-12">
       <div className="flex flex-col gap-6">
         <header className="flex max-w-[var(--reading-max)] flex-col gap-2">
           <p className="text-caption text-muted-foreground">
@@ -97,7 +99,7 @@ function AssessmentCard({
           <h1 className="text-display font-semibold tracking-tight">{assessment.title}</h1>
           <p className="text-body text-muted-foreground">{assessment.description}</p>
         </header>
-        <ol className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border">
+        <ol className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2">
           {assessment.blocks.map((b, i) => (
             <li key={b.id} className="flex flex-col gap-1 bg-background p-4">
               <p className="text-caption tabular-nums text-muted-foreground">
@@ -109,8 +111,8 @@ function AssessmentCard({
           ))}
         </ol>
         <p className="max-w-[var(--reading-max)] text-caption text-muted-foreground">
-          Это не тест с правильными ответами: асессмент собирает наблюдения для независимого анализа. Если не уверены —
-          так и отметьте, это тоже полезный сигнал. Оценка и разбор не показываются до анализа.
+          Асессмент собирает ответы для последующего анализа. Если не уверены, отметьте это или пропустите вопрос.
+          После ответа можно перейти к первоисточнику и изучить контекст решения.
         </p>
       </div>
 
@@ -154,6 +156,17 @@ function AssessmentCard({
                 <p className="text-caption text-muted-foreground">Завершённые попытки</p>
                 {done.map((t) => (
                   <AttemptRow key={t.id} attempt={t} flatTotal={flat.length} assessment={assessment} />
+                ))}
+              </div>
+            )}
+            {olderAttempts.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-caption text-muted-foreground">Попытки предыдущих версий</p>
+                {olderAttempts.map((t) => (
+                  <Link key={t.id} href={t.status === "completed" ? `/results/${encodeURIComponent(t.id)}` : `/assessment/${encodeURIComponent(t.id)}`} className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-body hover:bg-hover">
+                    <span>{t.status === "completed" ? "Результаты" : "Продолжить"}</span>
+                    <span className="text-caption text-muted-foreground">Версия {t.assessmentVersion}</span>
+                  </Link>
                 ))}
               </div>
             )}

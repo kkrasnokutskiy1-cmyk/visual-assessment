@@ -62,13 +62,21 @@ export function QuestionView({
         <Specimen asset={question.asset} className="max-w-[960px]" label="Пример" />
       )}
 
+      {question.figures && question.figures.length > 0 && (
+        <div className={cn("grid max-w-[960px] gap-4", question.figures.length > 1 && "md:grid-cols-2")}>
+          {question.figures.map((figure, i) => (
+            <Specimen key={figure.src} asset={figure} label={`Изображение ${i + 1}`} />
+          ))}
+        </div>
+      )}
+
       {question.kind === "image-choice" && question.options && (
         <div
-          role="radiogroup"
+          role="group"
           aria-label="Варианты"
           className={cn(
             "grid gap-4",
-            question.options.length === 2 ? "grid-cols-2" : question.options.length === 3 ? "grid-cols-3" : "grid-cols-2 xl:grid-cols-4",
+            question.options.length === 2 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3",
           )}
         >
           {question.options.map((opt, i) => {
@@ -80,12 +88,11 @@ export function QuestionView({
                 ) : null}
                 <button
                   type="button"
-                  role="radio"
-                  aria-checked={selected}
+                  aria-pressed={selected}
                   disabled={readOnly}
                   onClick={() => setValue({ type: "option", optionId: opt.id })}
                   className={cn(
-                    "flex h-9 items-center gap-2 rounded-lg px-3 text-left text-body transition-colors duration-[var(--duration-fast)]",
+                    "flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-left text-body transition-colors duration-[var(--duration-fast)]",
                     selected
                       ? "bg-foreground text-background"
                       : "bg-tint text-foreground hover:bg-tint-hover",
@@ -93,7 +100,7 @@ export function QuestionView({
                   )}
                 >
                   <span className="font-medium tabular-nums">{optionLetter(i)}</span>
-                  <span className="truncate">{opt.label ?? `Вариант ${optionLetter(i)}`}</span>
+                  <span>{opt.label ?? `Вариант ${optionLetter(i)}`}</span>
                   {selected && <Check className="ml-auto h-4 w-4" aria-hidden />}
                 </button>
               </div>
@@ -158,6 +165,15 @@ export function QuestionView({
             className="resize-y rounded-lg border border-border bg-transparent px-3 py-2 text-body outline-none transition-colors duration-[var(--duration-fast)] placeholder:text-muted-foreground focus-visible:border-[color:var(--focus-ring)]"
           />
         </label>
+      )}
+      {value && question.source.url && (
+        <p className="max-w-[var(--reading-max)] border-t border-border pt-4 text-caption text-muted-foreground">
+          Источник примера: {" "}
+          <a href={question.source.url} target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-4">
+            {question.source.title}
+          </a>
+          . Откройте оригинал, чтобы изучить контекст и аргументы автора.
+        </p>
       )}
     </div>
   );

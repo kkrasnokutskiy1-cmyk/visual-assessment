@@ -105,7 +105,7 @@ export function AssessmentRunner({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable)) return;
+      if (e.defaultPrevented || (t && (t.isContentEditable || t.closest("input, textarea, select, button, a, [role='radiogroup'], [role='dialog']")))) return;
       if (e.altKey || e.metaKey || e.ctrlKey || currentIndex < 0) return;
       if (e.key === "ArrowRight" && currentIndex < flat.length - 1) go(flat[currentIndex + 1].question.id);
       if (e.key === "ArrowLeft" && currentIndex > 0) go(flat[currentIndex - 1].question.id);
@@ -171,8 +171,8 @@ export function AssessmentRunner({
   };
 
   return (
-    <div className="mx-auto grid w-full max-w-[var(--content-max)] grid-cols-[220px_minmax(0,1fr)] gap-10 px-6 py-8">
-      <aside className="sticky top-20 flex h-[calc(100vh-6rem)] flex-col gap-6 overflow-y-auto pb-6">
+    <div className="mx-auto grid w-full max-w-[var(--content-max)] gap-8 px-4 py-8 md:grid-cols-[200px_minmax(0,1fr)] md:gap-10 md:px-6">
+      <aside className="flex flex-col gap-6 md:sticky md:top-20 md:h-[calc(100vh-6rem)] md:overflow-y-auto md:pb-6">
         <div className="flex flex-col gap-1">
           <p className="text-subtitle font-medium">{assessment.title}</p>
           <p className="text-caption tabular-nums text-muted-foreground">
@@ -196,7 +196,7 @@ export function AssessmentRunner({
       </aside>
 
       <section className="flex min-w-0 flex-col gap-8">
-        <div className="flex h-9 items-center justify-between gap-4 border-b border-border pb-3">
+        <div className="flex min-h-9 flex-wrap items-center justify-between gap-4 border-b border-border pb-3">
           <p className="text-caption text-muted-foreground">
             {current ? (
               <>

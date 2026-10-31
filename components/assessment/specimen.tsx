@@ -43,8 +43,21 @@ export function Specimen({
         />
         {overlay}
       </div>
+      {(asset.caption || asset.credit) && (
+        <figcaption className="mt-1.5 flex flex-wrap gap-x-2 text-caption text-muted-foreground">
+          {asset.caption && <span className="text-foreground">{asset.caption}</span>}
+          {asset.credit &&
+            (asset.originUrl ? (
+              <a href={asset.originUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
+                {asset.credit}
+              </a>
+            ) : (
+              <span>{asset.credit}</span>
+            ))}
+        </figcaption>
+      )}
       {zoomable && (
-        <div className="absolute right-2 top-2 opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/specimen:opacity-100 group-focus-within/specimen:opacity-100">
+        <div className="absolute right-2 top-2">
           <Button
             type="button"
             variant="secondary"
@@ -71,7 +84,7 @@ export function Specimen({
                 width={asset.width}
                 height={asset.height}
                 className="mx-auto block h-auto max-w-none"
-                style={{ width: Math.max(asset.width, 1000), maxWidth: "none" }}
+                style={{ width: asset.width, maxWidth: "none" }}
               />
             </div>
           </DialogContent>

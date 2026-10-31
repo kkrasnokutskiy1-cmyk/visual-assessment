@@ -12,6 +12,8 @@ import { buildExport } from "@/lib/export/build";
 import { Button } from "@/components/ui/button";
 import { ExportPanel } from "./ExportPanel";
 import { ResultsSummary, ResultsView } from "./ResultsView";
+import { ReadingPath } from "./ReadingPath";
+import { buildReadingPath } from "@/content/course/reading-path";
 
 type State =
   | { kind: "loading" }
@@ -151,6 +153,10 @@ export function ResultsScreen({
       </nav>
 
       <ExportPanel attempt={state.attempt} assessment={assessment} />
+
+      {state.attempt.status === "completed" && assessment.version >= 2 ? (
+        <ReadingPath modules={buildReadingPath(assessment, state.attempt)} />
+      ) : null}
 
       <ResultsView data={data} />
     </div>

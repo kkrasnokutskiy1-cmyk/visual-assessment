@@ -8,8 +8,23 @@ export type Asset = {
   /** Intrinsic size, used to keep proportions and to map marks. */
   width: number;
   height: number;
+  /** Who made the image (author / company), shown under it. Required for third-party images. */
+  credit?: string;
+  /** Page the image was taken from (the original post or article). */
+  originUrl?: string;
+  /**
+   * Usage basis as honestly known, e.g. "CC BY 4.0", "OGL v3",
+   * "Цитирование в учебных целях, права не подтверждены".
+   */
+  license?: string;
+  /** Short caption under the image, e.g. "До" / "После" — only when it does not give away the answer. */
+  caption?: string;
 };
 
+/**
+ * v1 used all three kinds. v2 uses only "image-choice" and "choice"; every v2 question
+ * shows at least one real image from its Reference ("area" is kept only so v1 attempts open).
+ */
 export type QuestionKind =
   /** Pick one text option. */
   | "choice"
@@ -28,7 +43,39 @@ export type Source = {
   title: string;
   url?: string;
   license: string;
+  author?: string;
+  publisher?: string;
+  /** ISO date or year of publication. */
+  publishedAt?: string;
 };
+
+/**
+ * A real, published case (article, X thread, talk) that a v2 question is built on.
+ * Nothing in it is invented: `problem`/`change`/`result` paraphrase the author,
+ * `quote` is verbatim (≤ 2 sentences). Lives in content/research/<topic>.ts.
+ */
+export type Reference = {
+  id: string;
+  title: string;
+  author: string;
+  publisher: string;
+  url: string;
+  publishedAt?: string;
+  topic: string;
+  /** What the author says is wrong with "before" (paraphrase). */
+  problem: string;
+  /** What they changed. */
+  change?: string;
+  /** Verbatim quote from the source, at most two sentences. */
+  quote?: string;
+  /** Measured effect exactly as the source reports it; omit if the source gives none. */
+  result?: string;
+  /** Real images from the source (local copies with credit/originUrl/license). */
+  figures: { before?: Asset; after?: Asset; single?: Asset };
+};
+
+/** Client-safe part of a Reference: citation only, no author argument (it would give the answer away). */
+export type PublicReference = Pick<Reference, "id" | "title" | "author" | "publisher" | "url" | "publishedAt">;
 
 /** Interpretation criteria — never shown to the respondent. */
 export type Interpretation = {
@@ -46,8 +93,12 @@ export type Question = {
   /** Context of the example (product, scale, medium). */
   context: string;
   options?: Option[];
-  /** Main image (required for "area", optional otherwise). */
+  /** Main image (required for "area"; in v2 required for "choice" unless `figures` is set). */
   asset?: Asset;
+  /** v2: several images shown above text options (e.g. a before/after pair). */
+  figures?: Asset[];
+  /** v2: id of the Reference (content/research/<topic>.ts) the question is built on. Required in v2. */
+  refId?: string;
   /** For "area": max number of marks (default 3). */
   maxMarks?: number;
   allowComment: boolean;
@@ -112,6 +163,9 @@ export type SaveState = "idle" | "saving" | "saved" | "error";
 
 /* ---------- Public (client-safe) view: interpretation criteria stripped ---------- */
 
-export type PublicQuestion = Omit<Question, "interpretation">;
+export type PublicQuestion = Omit<Question, "interpretation"> & {
+  /** Citation of the Reference, attached server-side from `refId`. */
+  reference?: PublicReference;
+};
 export type PublicBlock = Omit<Block, "questions"> & { questions: PublicQuestion[] };
 export type PublicAssessment = Omit<Assessment, "blocks"> & { blocks: PublicBlock[] };
