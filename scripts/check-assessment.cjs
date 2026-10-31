@@ -1,4 +1,4 @@
-// Validate the published v2 bank without bundling server-only interpretation into the UI.
+// Validate the current published bank without bundling server-only interpretation into the UI.
 /* eslint-disable @typescript-eslint/no-require-imports -- the loader compiles the bank to CommonJS for this standalone check */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,12 +15,13 @@ require.extensions['.ts'] = function (module, filename) {
   module._compile(compiled.outputText, filename);
 };
 const { getAssessment } = require('../content/assessments/index.ts');
-const assessment = getAssessment('visual-foundations', 2);
+const { getReference } = require('../content/research/index.ts');
+const assessment = getAssessment('visual-foundations');
 const errors = [];
-if (!assessment) errors.push('Версия 2 отсутствует в реестре.');
+if (!assessment) errors.push('Асессмент отсутствует в реестре.');
 else {
   const ids = new Set();
-  if (!assessment.blocks.length) errors.push('В версии 2 нет блоков.');
+  if (!assessment.blocks.length) errors.push(`В версии ${assessment.version} нет блоков.`);
   for (const block of assessment.blocks) {
     if (!block.questions.length) errors.push(`${block.id}: нет заданий.`);
     for (const q of block.questions) {
@@ -28,6 +29,7 @@ else {
       if (ids.has(q.id)) fail('повторяется ID');
       ids.add(q.id);
       if (!q.refId || !q.source?.url || !q.source?.title || !q.source?.author) fail('неполная ссылка на первоисточник или автора');
+      else if (!getReference(q.refId)) fail('источник отсутствует в реестре');
       if (!['choice', 'image-choice'].includes(q.kind)) fail('недопустимый тип задания');
       const images = [q.asset, ...(q.figures || []), ...(q.options || []).map((o) => o.asset)].filter(Boolean);
       if (!images.length) fail('нет изображения');
@@ -42,9 +44,9 @@ else {
       }
     }
   }
-  if (!ids.size) errors.push('В версии 2 нет заданий.');
+  if (!ids.size) errors.push(`В версии ${assessment.version} нет заданий.`);
 }
 if (errors.length) {
   console.error(errors.join('\n'));
   process.exitCode = 1;
-} else console.log('Структура версии 2 проверена. Доступность источников, права и содержание требуют отдельной проверки.');
+} else console.log(`Структура версии ${assessment.version} проверена. Доступность источников, права и содержание требуют отдельной проверки.`);

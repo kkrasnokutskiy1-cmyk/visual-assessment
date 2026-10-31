@@ -1,6 +1,8 @@
 import type { Assessment, Asset, Block, Question } from "@/lib/assessment/types";
 import { block as hierarchyBlock } from "./v2/hierarchy";
 import { materialsBlock } from "./v2/materials";
+import { interactionBlock } from "./v2/interaction";
+import { typographyBlock } from "./v3/typography";
 
 const source = { title: "Авторский учебный пример", license: "Оригинальный материал проекта" };
 const asset = (name: string, alt: string): Asset => ({ src: `/assessment-assets/${name}.svg`, alt, width: 800, height: 500 });
@@ -59,6 +61,27 @@ const v2: Assessment = {
     "Разборы опубликованных кейсов: исследования NN/g и Google, редизайны Figma, Linear, Stripe и других команд. В каждом задании — изображения из первоисточника; ответ сверяется с тем, что сказали или измерили авторы, а не с мнением составителя.",
   blocks: v2Blocks,
 };
-const versions: readonly Assessment[] = [v1, v2];
+// Keep previous banks intact: existing attempts resolve by assessment version.
+const v3: Assessment = {
+  id: "visual-foundations",
+  version: 3,
+  title: "Визуальный асессмент",
+  description: "Разбор визуальных и интерфейсных решений на примерах продуктовых команд. Ответы помогают увидеть подход к задаче и основания выбора; это не автоматическая оценка уровня.",
+  blocks: [
+    {
+      ...hierarchyBlock,
+      title: "Иерархия и композиция интерфейса",
+      description: "Решения Google и Figma: иерархия действий и организация пространства.",
+      questions: hierarchyBlock.questions.filter((question) => !question.refId?.startsWith("nng-")),
+    },
+    {
+      ...materialsBlock,
+      questions: materialsBlock.questions.filter((question) => !["mat-03", "mat-05"].includes(question.id)),
+    },
+    interactionBlock,
+    typographyBlock,
+  ],
+};
+const versions: readonly Assessment[] = [v1, v2, v3];
 export function listAssessments(): Assessment[] { return versions.filter((item) => !versions.some((other) => other.id === item.id && other.version > item.version)); }
 export function getAssessment(id: string, version?: number): Assessment | undefined { return version === undefined ? listAssessments().find((item) => item.id === id) : versions.find((item) => item.id === id && item.version === version); }
