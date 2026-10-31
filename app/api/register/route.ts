@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin || origin !== new URL(request.url).origin) return Response.json({ error: "Недопустимый источник запроса." }, { status: 403 });
+  if (!process.env.DATABASE_URL || !process.env.AUTH_SECRET) return Response.json({ error: "Сервис хранения пока не настроен." }, { status: 503 });
   const body = await request.json().catch(() => null);
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = body?.password;

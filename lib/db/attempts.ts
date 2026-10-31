@@ -29,6 +29,7 @@ function validateAnswer(value: unknown, questionId: string): Answer {
 export async function handle(action: string, request: Request, id?: string, questionId?: string) {
   try {
     if (request.method !== "GET" && request.headers.get("origin") !== new URL(request.url).origin) return fail(403, "Недопустимый источник запроса.");
+    if (!process.env.DATABASE_URL || (action !== "shared" && !process.env.AUTH_SECRET)) return fail(503, "Сервис хранения пока не настроен.");
     if (action === "shared") {
       const result = await db().query("SELECT * FROM attempts WHERE share_token = $1 AND status = 'completed'", [id]);
       if (!result.rows[0]) return fail(404, "Ссылка недействительна.");
