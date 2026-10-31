@@ -4,13 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { AttemptApiError, attemptsApi, readOutbox } from "@/lib/assessment/client";
+import { attemptsApi } from "@/lib/assessment/client";
 import type { Attempt, PublicAssessment } from "@/lib/assessment/types";
 import { flatten, summarize } from "./progress";
 
 type Load =
   | { kind: "loading" }
-  | { kind: "anon" }
   | { kind: "error"; message: string }
   | { kind: "ready"; attempts: Attempt[] };
 
@@ -27,8 +26,7 @@ export function AssessmentOverview({ assessments }: { assessments: PublicAssessm
     try {
       setLoad({ kind: "ready", attempts: await attemptsApi.list() });
     } catch (e) {
-      if (e instanceof AttemptApiError && e.status === 401) setLoad({ kind: "anon" });
-      else setLoad({ kind: "error", message: e instanceof Error ? e.message : "Не удалось загрузить попытки." });
+      setLoad({ kind: "error", message: e instanceof Error ? e.message : "Не удалось загрузить попытки." });
     }
   }, []);
 
@@ -37,16 +35,15 @@ export function AssessmentOverview({ assessments }: { assessments: PublicAssessm
     void fetchAttempts();
   }, [fetchAttempts]);
 
-  const start = async (assessmentId: string) => {
+  const start = async (assessmentId: string, assessmentVersion: number) => {
     setStarting(assessmentId);
     setStartError(null);
     try {
-      const attempt = await attemptsApi.create(assessmentId);
+      const attempt = await attemptsApi.create(assessmentId, assessmentVersion);
       router.push(`/assessment/${encodeURIComponent(attempt.id)}`);
     } catch (e) {
       setStarting(null);
-      if (e instanceof AttemptApiError && e.status === 401) setLoad({ kind: "anon" });
-      else setStartError(e instanceof Error ? e.message : "Не удалось начать попытку.");
+      setStartError(e instanceof Error ? e.message : "Не удалось начать попытку.");
     }
   };
 
@@ -62,7 +59,7 @@ export function AssessmentOverview({ assessments }: { assessments: PublicAssessm
           load={load}
           starting={starting === a.id}
           startError={startError}
-          onStart={() => void start(a.id)}
+          onStart={() => void start(a.id, a.version)}
           onRetry={() => void fetchAttempts()}
         />
       ))}
@@ -95,7 +92,7 @@ function AssessmentCard({
       <div className="flex flex-col gap-6">
         <header className="flex max-w-[var(--reading-max)] flex-col gap-2">
           <p className="text-caption text-muted-foreground">
-            Версия {assessment.version} · {flat.length} вопросов · несколько сеансов по 30–60 минут
+            Версия {assessment.version} · {flat.length} вопросов
           </p>
           <h1 className="text-display font-semibold tracking-tight">{assessment.title}</h1>
           <p className="text-body text-muted-foreground">{assessment.description}</p>
@@ -120,23 +117,6 @@ function AssessmentCard({
       <aside className="flex flex-col gap-4">
         {load.kind === "loading" && <div className="h-32 animate-pulse rounded-lg bg-tint" aria-busy="true" />}
 
-        {load.kind === "anon" && (
-          <div className="flex flex-col gap-3 rounded-lg border border-border p-5">
-            <p className="text-subtitle font-medium">Войдите, чтобы начать</p>
-            <p className="text-caption text-muted-foreground">
-              Ответы сохраняются в аккаунте и синхронизируются между устройствами.
-            </p>
-            <div className="flex gap-2">
-              <Button asChild size="compact">
-                <Link href="/login?next=/assessment">Войти</Link>
-              </Button>
-              <Button asChild size="compact" variant="tertiary">
-                <Link href="/register?next=/assessment">Создать аккаунт</Link>
-              </Button>
-            </div>
-          </div>
-        )}
-
         {load.kind === "error" && (
           <div role="alert" className="flex flex-col gap-3 rounded-lg border border-border p-5">
             <p className="text-subtitle font-medium">Не удалось загрузить попытки</p>
@@ -157,7 +137,7 @@ function AssessmentCard({
                 <p className="text-caption text-muted-foreground">
                   {done.length > 0
                     ? "Предыдущие попытки сохранятся без изменений."
-                    : "Можно прерваться в любой момент и продолжить с того же места."}
+                    : "Можно прерваться и продолжить в этом браузере. Очистка данных браузера удалит попытки."}
                 </p>
                 <Button loading={starting} disabled={starting} onClick={onStart}>
                   {done.length > 0 ? "Начать новую попытку" : "Начать"}
@@ -195,8 +175,7 @@ function AttemptRow({
   flatTotal: number;
   primary?: boolean;
 }) {
-  const answers = { ...attempt.answers, ...(attempt.status === "in_progress" ? readOutbox(attempt.id) : {}) };
-  const stats = summarize(flatten(assessment), answers);
+  const stats = summarize(flatten(assessment), attempt.answers);
   const href =
     attempt.status === "completed"
       ? `/results/${encodeURIComponent(attempt.id)}`

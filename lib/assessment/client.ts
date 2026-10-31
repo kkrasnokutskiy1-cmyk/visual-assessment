@@ -1,4 +1,6 @@
-// Client-side calls to the attempts API (contract in ./types.ts). Owner: A.
+// Local attempt storage (contract in ./types.ts). Owner: A.
+// Everything lives in this browser's localStorage — no server, no accounts.
+// Only call from effects or event handlers: localStorage does not exist during SSR.
 
 import type { Answer, Attempt } from "./types";
 
@@ -11,70 +13,135 @@ export class AttemptApiError extends Error {
   }
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      ...init,
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json", ...init?.headers },
-    });
-  } catch {
-    throw new AttemptApiError("Нет соединения с сервером.", 0);
+const STORAGE_KEY = "va-attempts:v1";
+
+type Store = Record<string, Attempt>;
+
+function storage(): Storage {
+  if (typeof window === "undefined" || !window.localStorage) {
+    throw new AttemptApiError("Хранилище браузера недоступно.", 507);
   }
-  const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
-  if (!res.ok) {
-    throw new AttemptApiError(body?.error ?? `Сервер ответил ошибкой ${res.status}.`, res.status);
-  }
-  return body as T;
+  return window.localStorage;
 }
 
-const enc = encodeURIComponent;
-
-export const attemptsApi = {
-  list: () => request<{ attempts: Attempt[] }>("/api/attempts").then((r) => r.attempts),
-  create: (assessmentId: string) =>
-    request<{ attempt: Attempt }>("/api/attempts", {
-      method: "POST",
-      body: JSON.stringify({ assessmentId }),
-    }).then((r) => r.attempt),
-  get: (id: string) => request<{ attempt: Attempt }>(`/api/attempts/${enc(id)}`).then((r) => r.attempt),
-  saveAnswer: (id: string, answer: Answer) =>
-    request<{ answer: Answer }>(`/api/attempts/${enc(id)}/answers/${enc(answer.questionId)}`, {
-      method: "PUT",
-      body: JSON.stringify(answer),
-    }).then((r) => r.answer),
-  complete: (id: string) =>
-    request<{ attempt: Attempt }>(`/api/attempts/${enc(id)}/complete`, { method: "POST" }).then(
-      (r) => r.attempt,
-    ),
-};
-
-/* ---------- Outbox: unsent answers survive reloads and network loss ---------- */
-
-const outboxKey = (attemptId: string) => `va-outbox:${attemptId}`;
-
-export function readOutbox(attemptId: string): Record<string, Answer> {
-  if (typeof window === "undefined") return {};
+function readStore(): Store {
+  const raw = storage().getItem(STORAGE_KEY);
+  if (!raw) return {};
   try {
-    const raw = window.localStorage.getItem(outboxKey(attemptId));
-    return raw ? (JSON.parse(raw) as Record<string, Answer>) : {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Store) : {};
   } catch {
     return {};
   }
 }
 
-export function writeOutbox(attemptId: string, outbox: Record<string, Answer>) {
+function writeStore(store: Store) {
   try {
-    if (Object.keys(outbox).length === 0) window.localStorage.removeItem(outboxKey(attemptId));
-    else window.localStorage.setItem(outboxKey(attemptId), JSON.stringify(outbox));
+    storage().setItem(STORAGE_KEY, JSON.stringify(store));
   } catch {
-    // Storage full or disabled: answers stay in memory and are retried from there.
+    throw new AttemptApiError(
+      "Не удалось записать данные в браузер: хранилище переполнено или отключено.",
+      507,
+    );
   }
 }
 
-/** Merge server answers with pending local ones; the newer `updatedAt` wins. */
+function find(store: Store, id: string): Attempt {
+  const attempt = store[id];
+  if (!attempt) throw new AttemptApiError("Попытка не найдена на этом устройстве.", 404);
+  return attempt;
+}
+
+function newId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Run synchronously against storage but keep the Promise-based API the screens already use. */
+function run<T>(fn: () => T): Promise<T> {
+  try {
+    return Promise.resolve(fn());
+  } catch (e) {
+    return Promise.reject(
+      e instanceof AttemptApiError ? e : new AttemptApiError("Не удалось прочитать данные браузера.", 500),
+    );
+  }
+}
+
+export const attemptsApi = {
+  /** All attempts on this device, newest first. */
+  list: () =>
+    run(() => Object.values(readStore()).sort((a, b) => b.startedAt.localeCompare(a.startedAt))),
+
+  create: (assessmentId: string, assessmentVersion: number) =>
+    run(() => {
+      const store = readStore();
+      const attempt: Attempt = {
+        id: newId(),
+        assessmentId,
+        assessmentVersion,
+        status: "in_progress",
+        answers: {},
+        startedAt: new Date().toISOString(),
+      };
+      store[attempt.id] = attempt;
+      writeStore(store);
+      return attempt;
+    }),
+
+  get: (id: string) => run(() => find(readStore(), id)),
+
+  /** Saves an answer; the one with the newer `updatedAt` wins. */
+  saveAnswer: (id: string, answer: Answer) =>
+    run(() => {
+      const store = readStore();
+      const attempt = find(store, id);
+      if (attempt.status === "completed") {
+        throw new AttemptApiError("Завершённую попытку нельзя изменить.", 409);
+      }
+      const previous = attempt.answers[answer.questionId];
+      if (previous && previous.updatedAt > answer.updatedAt) return previous;
+      attempt.answers = { ...attempt.answers, [answer.questionId]: answer };
+      writeStore(store);
+      return answer;
+    }),
+
+  complete: (id: string) =>
+    run(() => {
+      const store = readStore();
+      const attempt = find(store, id);
+      if (attempt.status !== "completed") {
+        attempt.status = "completed";
+        attempt.completedAt = new Date().toISOString();
+        writeStore(store);
+      }
+      return attempt;
+    }),
+
+  remove: (id: string) =>
+    run(() => {
+      const store = readStore();
+      if (!store[id]) return;
+      delete store[id];
+      writeStore(store);
+    }),
+};
+
+/* ---------- Compatibility shims: answers are written directly, so there is no outbox ---------- */
+
+/** @deprecated No outbox any more — always empty. */
+export function readOutbox(attemptId: string): Record<string, Answer> {
+  void attemptId;
+  return {};
+}
+
+/** @deprecated No outbox any more — no-op. */
+export function writeOutbox(attemptId: string, outbox: Record<string, Answer>) {
+  void attemptId;
+  void outbox;
+}
+
+/** Merge stored answers with pending local ones; the newer `updatedAt` wins. */
 export function mergeAnswers(
   server: Record<string, Answer>,
   pending: Record<string, Answer>,

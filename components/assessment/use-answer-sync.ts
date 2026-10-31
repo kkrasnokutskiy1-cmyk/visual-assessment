@@ -1,11 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AttemptApiError, attemptsApi, readOutbox, writeOutbox } from "@/lib/assessment/client";
+import { useCallback, useRef, useState } from "react";
+import { AttemptApiError, attemptsApi } from "@/lib/assessment/client";
 import type { Answer, SaveState } from "@/lib/assessment/types";
-
-const DEBOUNCE_MS = 500;
-const RETRY_STEPS_MS = [2000, 5000, 10000, 30000];
 
 export type SyncStatus = {
   state: SaveState;
@@ -14,129 +11,69 @@ export type SyncStatus = {
 };
 
 /**
- * Autosave with a persistent outbox. Every change is written to localStorage first,
- * then sent to the server; failed sends are retried with backoff and on reconnect.
+ * Autosave to this browser's storage. Each change is written immediately; if a write
+ * fails (storage full or disabled) the answer stays in memory until `retryNow`.
  */
 export function useAnswerSync(attemptId: string, enabled: boolean) {
-  const outbox = useRef<Record<string, Answer>>({});
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flushing = useRef(false);
-  const retryStep = useRef(0);
-  const flushRef = useRef<() => void>(() => {});
+  const pending = useRef<Record<string, Answer>>({});
+  const flushing = useRef<Promise<void> | null>(null);
   const [status, setStatus] = useState<SyncStatus>({ state: "idle", pending: 0 });
 
-  const schedule = useCallback((delay: number, run: () => void) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(run, delay);
-  }, []);
-
-  const flush = useCallback(async () => {
-    if (!enabled || flushing.current) return;
-    const items = Object.values(outbox.current);
-    if (items.length === 0) {
-      setStatus((s) => (s.state === "saving" ? { state: "saved", pending: 0 } : s));
-      return;
-    }
-    flushing.current = true;
-    setStatus({ state: "saving", pending: items.length });
-    try {
-      // Keep sending until nothing is left: edits made during a send are picked up in the next pass.
-      let batch = items;
-      while (batch.length > 0) {
-        for (const answer of batch) {
+  const flush = useCallback((): Promise<void> => {
+    if (!enabled) return Promise.resolve();
+    if (flushing.current) return flushing.current;
+    const run = (async () => {
+      // Edits queued while writing are picked up by the next pass.
+      while (Object.keys(pending.current).length > 0) {
+        for (const answer of Object.values(pending.current)) {
           await attemptsApi.saveAnswer(attemptId, answer);
-          const current = outbox.current[answer.questionId];
-          if (current && current.updatedAt === answer.updatedAt) {
-            delete outbox.current[answer.questionId];
-            writeOutbox(attemptId, outbox.current);
+          if (pending.current[answer.questionId]?.updatedAt === answer.updatedAt) {
+            delete pending.current[answer.questionId];
           }
         }
-        batch = Object.values(outbox.current);
       }
-      retryStep.current = 0;
-      flushing.current = false;
       setStatus({ state: "saved", pending: 0 });
-    } catch (e) {
-      flushing.current = false;
-      const err = e instanceof AttemptApiError ? e : new AttemptApiError("Не удалось сохранить.", 0);
-      const pending = Object.keys(outbox.current).length;
-      if (err.status === 401) {
-        setStatus({ state: "error", pending, error: "Сессия истекла — войдите снова. Ответы сохранены на этом устройстве." });
-        return;
-      }
-      if (err.status === 409) {
-        setStatus({ state: "error", pending, error: "Попытка уже завершена, изменения не принимаются." });
-        return;
-      }
-      const delay = RETRY_STEPS_MS[Math.min(retryStep.current, RETRY_STEPS_MS.length - 1)];
-      retryStep.current += 1;
-      setStatus({
-        state: "error",
-        pending,
-        error:
-          err.status === 0
-            ? "Нет связи. Ответы сохранены на этом устройстве и будут отправлены автоматически."
-            : `${err.message} Повторим автоматически.`,
+    })()
+      .catch((e: unknown) => {
+        const err = e instanceof AttemptApiError ? e : new AttemptApiError("Не удалось сохранить.", 0);
+        setStatus({
+          state: "error",
+          pending: Object.keys(pending.current).length,
+          error:
+            err.status === 409
+              ? "Попытка уже завершена, изменения не принимаются."
+              : `${err.message} Освободите место или разрешите хранение данных для сайта.`,
+        });
+      })
+      .finally(() => {
+        flushing.current = null;
       });
-      schedule(delay, () => flushRef.current());
-    }
-  }, [attemptId, enabled, schedule]);
+    flushing.current = run;
+    return run;
+  }, [attemptId, enabled]);
 
-  useEffect(() => {
-    flushRef.current = () => void flush();
-  }, [flush]);
-
-  /** Restore unsent answers from a previous session (call once after loading the attempt). */
-  const restore = useCallback((): Record<string, Answer> => {
-    outbox.current = readOutbox(attemptId);
-    const n = Object.keys(outbox.current).length;
-    if (n > 0) {
-      setStatus({ state: "saving", pending: n });
-      schedule(0, () => void flush());
-    }
-    return { ...outbox.current };
-  }, [attemptId, flush, schedule]);
+  /** Kept for API compatibility: nothing is pending between page loads. */
+  const restore = useCallback((): Record<string, Answer> => ({}), []);
 
   const queue = useCallback(
     (answer: Answer) => {
-      outbox.current[answer.questionId] = answer;
-      writeOutbox(attemptId, outbox.current);
-      setStatus((s) => ({ ...s, state: "saving", pending: Object.keys(outbox.current).length }));
-      retryStep.current = 0;
-      schedule(DEBOUNCE_MS, () => void flush());
+      pending.current[answer.questionId] = answer;
+      setStatus((s) => ({ ...s, state: "saving", pending: Object.keys(pending.current).length }));
+      void flush();
     },
-    [attemptId, flush, schedule],
+    [flush],
   );
 
   const retryNow = useCallback(() => {
-    retryStep.current = 0;
-    schedule(0, () => void flush());
-  }, [flush, schedule]);
-
-  /** Wait until the outbox is empty (used before completing). Returns false on failure. */
-  const drain = useCallback(async (): Promise<boolean> => {
-    if (timer.current) clearTimeout(timer.current);
-    for (let i = 0; i < 3 && Object.keys(outbox.current).length > 0; i++) {
-      while (flushing.current) await new Promise((r) => setTimeout(r, 100));
-      await flush();
-      if (timer.current) clearTimeout(timer.current);
-    }
-    return Object.keys(outbox.current).length === 0;
+    void flush();
   }, [flush]);
 
-  useEffect(() => {
-    const onOnline = () => retryNow();
-    const onUnload = (e: BeforeUnloadEvent) => {
-      if (Object.keys(outbox.current).length > 0) e.preventDefault();
-    };
-    window.addEventListener("online", onOnline);
-    window.addEventListener("beforeunload", onUnload);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("beforeunload", onUnload);
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [retryNow]);
+  /** Write everything still pending (used before completing). Returns false on failure. */
+  const drain = useCallback(async (): Promise<boolean> => {
+    if (flushing.current) await flushing.current;
+    if (Object.keys(pending.current).length > 0) await flush();
+    return Object.keys(pending.current).length === 0;
+  }, [flush]);
 
   return { status, queue, restore, retryNow, drain };
 }

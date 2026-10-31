@@ -1,33 +1,27 @@
 "use client";
 
-// Loads an attempt (owner or share link), resolves its assessment version and
-// renders the read-only results. Owner: D.
+// Loads an attempt from this browser's storage, resolves its assessment version
+// and renders the read-only results. Owner: D.
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import { AttemptApiError, attemptsApi } from "@/lib/assessment/client";
 import type { Attempt, PublicAssessment } from "@/lib/assessment/types";
 import { buildExport } from "@/lib/export/build";
-import { downloadExport } from "@/lib/export/download";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
-import { ApiError, resultsApi } from "./api";
+import { ExportPanel } from "./ExportPanel";
 import { ResultsSummary, ResultsView } from "./ResultsView";
-import { SharePanel } from "./SharePanel";
-
-type Mode = "owner" | "share";
 
 type State =
   | { kind: "loading" }
   | { kind: "error"; message: string; status: number }
   | { kind: "ready"; attempt: Attempt };
 
-function errorText(mode: Mode, status: number, message: string): string {
-  if (mode === "share" && (status === 404 || status === 403)) {
-    return "Ссылка недействительна или отключена владельцем.";
+function errorText(status: number, message: string): string {
+  if (status === 404) {
+    return "Проход не найден в этом браузере. Результаты хранятся только на устройстве, где вы проходили асессмент.";
   }
-  if (status === 401) return "Войдите в аккаунт, чтобы увидеть свои результаты.";
-  if (status === 403 || status === 404) return "Проход не найден или принадлежит другому аккаунту.";
   return message;
 }
 
@@ -37,44 +31,39 @@ function formatDate(iso?: string) {
 }
 
 export function ResultsScreen({
-  mode,
   params,
   bank,
 }: {
-  mode: Mode;
-  params: Promise<{ attemptId?: string; token?: string }>;
+  params: Promise<{ attemptId: string }>;
   /** Every published version, without interpretation (lib/assessment/public.ts). */
   bank: PublicAssessment[];
 }) {
-  const { attemptId, token } = use(params);
-  const key = (mode === "owner" ? attemptId : token) ?? "";
+  const { attemptId: key } = use(params);
   const [state, setState] = useState<State>({ kind: "loading" });
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    const load = mode === "owner" ? resultsApi.attempt(key) : resultsApi.shared(key);
-    load.then(
+    attemptsApi.get(key).then(
       (attempt) => !cancelled && setState({ kind: "ready", attempt }),
       (e: unknown) => {
         if (cancelled) return;
-        const status = e instanceof ApiError ? e.status : 500;
+        const status = e instanceof AttemptApiError ? e.status : 500;
         const message = e instanceof Error ? e.message : "Не удалось загрузить результаты";
-        setState({ kind: "error", status, message: errorText(mode, status, message) });
+        setState({ kind: "error", status, message: errorText(status, message) });
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [mode, key, reload]);
+  }, [key, reload]);
 
   const attempt = state.kind === "ready" ? state.attempt : null;
   const assessment = useMemo(
     () => {
       if (!attempt) return undefined;
-      // Prefer the server-side snapshot taken at the start of the attempt, so a
-      // later bank change never alters a finished attempt (interpretation is
-      // stripped by the server; the export never reads it).
+      // Prefer a stored snapshot if an attempt carries one (older exports did);
+      // otherwise use the bank version the attempt was started on.
       const snapshot = (attempt as Attempt & { assessmentSnapshot?: PublicAssessment })
         .assessmentSnapshot;
       if (snapshot?.blocks) return snapshot;
@@ -99,11 +88,11 @@ export function ResultsScreen({
         <h1 className="text-xl font-medium">Результаты недоступны</h1>
         <p className="text-sm text-muted-foreground">{state.message}</p>
         <div className="flex gap-2">
-          {state.status === 401 ? (
-            <Button asChild variant="primary">
-              <Link href={`/login?next=/results/${encodeURIComponent(key)}`}>Войти</Link>
+          {state.status === 404 ? (
+            <Button asChild variant="secondary">
+              <Link href="/results">Все результаты</Link>
             </Button>
-          ) : state.status === 0 || state.status >= 500 ? (
+          ) : state.status >= 500 ? (
             <Button
               variant="secondary"
               onClick={() => {
@@ -135,7 +124,7 @@ export function ResultsScreen({
     <div className="grid gap-10 py-12">
       <header className="grid gap-2">
         <p className="text-sm text-muted-foreground">
-          {mode === "share" ? "Результаты по ссылке" : "Мои результаты"} ·{" "}
+          Мои результаты ·{" "}
           {state.attempt.status === "completed" ? "проход завершён" : "проход не завершён"}
         </p>
         <h1 className="text-2xl font-medium text-balance">{assessment.title}</h1>
@@ -147,39 +136,21 @@ export function ResultsScreen({
 
       <ResultsSummary data={data} />
 
-      {mode === "owner" ? (
-        <nav className="flex gap-2" aria-label="Действия с проходом">
-          {state.attempt.status === "completed" ? (
-            <Button asChild variant="secondary">
-              <Link href="/assessment">К обзору и новой попытке</Link>
-            </Button>
-          ) : (
-            <Button asChild variant="primary">
-              <Link href={`/assessment/${encodeURIComponent(state.attempt.id)}`}>
-                Продолжить проход
-              </Link>
-            </Button>
-          )}
-        </nav>
-      ) : null}
-
-      {mode === "owner" ? (
-        <SharePanel attempt={state.attempt} assessment={assessment} />
-      ) : (
-        <div>
-          <Button
-            variant="secondary"
-            leadingIcon={Download}
-            onClick={() =>
-              downloadExport(
-                buildExport(state.attempt, assessment, { baseUrl: window.location.origin }),
-              )
-            }
-          >
-            Скачать JSON
+      <nav className="flex gap-2" aria-label="Действия с проходом">
+        {state.attempt.status === "completed" ? (
+          <Button asChild variant="secondary">
+            <Link href="/assessment">К обзору и новой попытке</Link>
           </Button>
-        </div>
-      )}
+        ) : (
+          <Button asChild variant="primary">
+            <Link href={`/assessment/${encodeURIComponent(state.attempt.id)}`}>
+              Продолжить проход
+            </Link>
+          </Button>
+        )}
+      </nav>
+
+      <ExportPanel attempt={state.attempt} assessment={assessment} />
 
       <ResultsView data={data} />
     </div>

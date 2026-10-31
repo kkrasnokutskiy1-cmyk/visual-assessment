@@ -62,12 +62,12 @@ export function AssessmentRunner({
   }, [attemptId, assessments]);
 
   useEffect(() => {
-    // Initial fetch of external data; state is set once the request settles.
+    // Browser storage is available after hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAttempt();
   }, [fetchAttempt]);
 
-  // Merge server state with unsent local answers once the attempt is loaded.
+  // Restore the saved answers once the attempt is loaded.
   const attempt = ready ? load.attempt : null;
   const assessmentForResume = ready ? load.assessment : null;
   useEffect(() => {
@@ -116,21 +116,9 @@ export function AssessmentRunner({
 
   if (load.kind === "loading") return <LoadingState label="Загружаем попытку…" />;
   if (load.kind === "error") {
-    if (load.status === 401)
-      return (
-        <ErrorState
-          title="Нужно войти"
-          message="Попытки хранятся в вашем аккаунте. Войдите, чтобы продолжить с места остановки."
-          action={
-            <Button asChild>
-              <Link href={`/login?next=${encodeURIComponent(pathname)}`}>Войти</Link>
-            </Button>
-          }
-        />
-      );
     return (
       <ErrorState
-        title={load.status === 404 || load.status === 403 ? "Попытка недоступна" : "Не удалось загрузить"}
+        title={load.status === 404 ? "Попытка не найдена" : "Не удалось загрузить"}
         message={load.message}
         action={
           <Button variant="secondary" onClick={() => void fetchAttempt()}>
@@ -170,7 +158,7 @@ export function AssessmentRunner({
     const drained = await sync.drain();
     if (!drained) {
       setCompleting(false);
-      setCompleteError("Не все ответы отправлены на сервер. Проверьте соединение и повторите.");
+      setCompleteError("Не все ответы удалось сохранить в браузере. Повторите сохранение перед завершением.");
       return;
     }
     try {

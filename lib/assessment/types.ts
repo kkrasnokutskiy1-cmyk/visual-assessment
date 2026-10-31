@@ -85,7 +85,7 @@ export type Answer = {
   value?: AnswerValue;
   marks?: Mark[];
   comment?: string;
-  /** ISO timestamp set by the client; the server keeps the latest one. */
+  /** ISO timestamp of the edit; the latest one wins. */
   updatedAt: string;
 };
 
@@ -99,24 +99,15 @@ export type Attempt = {
   answers: Record<string, Answer>;
   startedAt: string;
   completedAt?: string;
-  /** Present when the owner has an active share link. */
-  shareToken?: string | null;
 };
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
 /**
- * HTTP API (implemented by C in app/api):
- *   GET    /api/attempts                          -> { attempts: Attempt[] }
- *   POST   /api/attempts  { assessmentId }        -> { attempt: Attempt }
- *   GET    /api/attempts/:id                      -> { attempt: Attempt }
- *   PUT    /api/attempts/:id/answers/:questionId  body Answer -> { answer: Answer }
- *   POST   /api/attempts/:id/complete             -> { attempt: Attempt }
- *   POST   /api/attempts/:id/share                -> { token: string }
- *   DELETE /api/attempts/:id/share                -> { ok: true }
- *   GET    /api/share/:token                      -> { attempt: Attempt }
- * Errors: { error: string } with status 400/401/403/404/409/500.
- * 409 when writing to a completed attempt.
+ * Storage: attempts live only in this browser's localStorage (key "va-attempts:v1"),
+ * accessed through `attemptsApi` in ./client.ts. There is no server and no accounts.
+ * Errors are `AttemptApiError`: 404 attempt not on this device, 409 write to a completed
+ * attempt, 507 browser storage full or disabled.
  */
 
 /* ---------- Public (client-safe) view: interpretation criteria stripped ---------- */

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function OwnerResultsPage(props: PageProps<"/results/[attemptId]">) {
   return (
     <Suspense fallback={<ResultsSkeleton />}>
-      <ResultsScreen mode="owner" params={props.params} bank={publicAllVersions()} />
+      <ResultsScreen params={props.params} bank={publicAllVersions()} />
     </Suspense>
   );
 }

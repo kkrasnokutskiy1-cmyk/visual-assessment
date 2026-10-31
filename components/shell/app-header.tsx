@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { AccountLink } from "@/components/shell/account-link";
 
 const nav = [
   { href: "/assessment", label: "Асессмент" },
@@ -26,7 +25,6 @@ export function AppHeader() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
-          <AccountLink />
           <ThemeToggle />
         </div>
       </div>
